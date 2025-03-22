@@ -1,22 +1,36 @@
-from fastapi import FastAPI
-import requests
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import requests
+import openai
+import os
 
-app = FastAPI()
+app = FastAPI(
+    title="SBIR MatchmakerX API",
+    description="API wrapper for SBIR solicitations, winners, and funding gap analysis.",
+    version="0.1.0"
+)
 
-# CORS so Softr or frontend can call it
+# Allow all origins for now (secure later)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # In prod, restrict this
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# 🔥 Root route
 @app.get("/")
 def root():
-    return {"status": "SBIR API Ready"}
+    return {"status": "SBIR MatchmakerX API is live."}
 
+# 🔍 Ping route
+@app.get("/ping")
+def ping():
+    return {"status": "ok", "uptime": "🔥"}
+
+# 🏆 SBIR Awards endpoint
 @app.get("/awards")
 def get_awards(agency: str = "DOE", year: int = 2022, start: int = 0, rows: int = 100):
     url = f"https://api.www.sbir.gov/public/api/awards?agency={agency}&year={year}&start={start}&rows={rows}&format=json"
@@ -26,32 +40,14 @@ def get_awards(agency: str = "DOE", year: int = 2022, start: int = 0, rows: int 
         return {"count": len(data), "awards": data}
     except Exception as e:
         return {"error": str(e)}
-from fastapi import FastAPI, Request
-from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
-import openai
-import os
 
-app = FastAPI()
-
-# Allow all origins for now (secure later)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Set your OpenAI API key
+# 🧠 Enrichment with OpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Request model
 class EnrichRequest(BaseModel):
     award_title: str
     abstract: str
 
-# Enrich endpoint
 @app.post("/enrich")
 async def enrich_award(data: EnrichRequest):
     prompt = (
